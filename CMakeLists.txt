@@ -1,17 +1,11 @@
-
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-
 project(time2root)
 
-# Get root include location
-execute_process(COMMAND root-config --incdir OUTPUT_VARIABLE ROOT_DIR
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
-# Get libraries that need to be linked
-execute_process(COMMAND root-config --glibs OUTPUT_VARIABLE GLIBS
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
-include_directories(${CMAKE_SOURCE_DIR} ${ROOT_DIR})
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules)
+find_package(ROOT REQUIRED)
+
 # Add libraries to linker flags
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${GLIBS} -lgsl -lgslcblas -lfftw3 -lm")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${ROOT_LIBRARIES} -lgsl -lgslcblas -lfftw3 -lm")
 
 set(SOURCE
     FritzDPSS.cxx
@@ -24,11 +18,9 @@ set_source_files_properties(setinfo.c PROPERTIES LANGUAGE CXX)
 set(HEADERS
     header.h
     header_linkdef.h)
-# Build dictionary
-add_custom_command(OUTPUT header_dict.cxx
-    COMMAND rootcint -f ${CMAKE_CURRENT_BINARY_DIR}/header_dict.cxx -c ${HEADERS}
-    DEPENDS header.h header_linkdef.h
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+include_directories(${CMAKE_SOURCE_DIR} ${ROOT_INCLUDE_DIR})
+root_generate_dictionary(header_dict header.h LINKDEF header_linkdef.h)
 
 # Build object library with common objects
 add_library(iqt_tiq OBJECT ${SOURCE})
