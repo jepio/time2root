@@ -307,35 +307,58 @@ bool do_process_tiq(const char* outfile, FILE* fp, Info_t* pInfo, int ntap, bool
     //h->GetYaxis()->SetTimeFormat("#splitline{%H:%M:%S}{%d.%m.%y}");
     //h->GetYaxis()->SetTimeOffset(dt->Convert());
 
-    int j, k, tmp;
-    Multitaper multitaper(cFrmPt, ntap, ntap/2+1);
-    double* mtpsd = (double*) malloc(sizeof(double) * cFrmPt);
-    fftw_complex* sgn = (fftw_complex*) fftw_malloc(
-            sizeof(fftw_complex) * cFrmPt);
-    fftw_plan p = fftw_plan_dft_1d(cFrmPt, sgn, sgn,
-            FFTW_FORWARD, FFTW_ESTIMATE);
+    int ctr = 0;
+    #pragma omp parallel shared(ctr)
+    {
+        int j, k, tmp;
+        Multitaper multitaper(cFrmPt, ntap, ntap/2+1);
 
-    for (j = 0; j < blksz; j++) {
-        for (k = 0; k < cFrmPt; k++) {
-            fread(&tmp, 4, 1, fp);
-            sgn[k][0] = pInfo->Scaling * tmp;
-            fread(&tmp, 4, 1, fp);
-            sgn[k][1] = pInfo->Scaling * tmp;
-            hmag->SetBinContent(j*cFrmPt + k + 1,
-                    sqrt(SQ(sgn[k][0]) + SQ(sgn[k][1])));
-            hphs->SetBinContent(j*cFrmPt + k + 1,
-                    atan2(sgn[k][1], sgn[k][0]));
+        double *mtpsd;
+        fftw_complex *sgn;
+        fftw_plan p;
+
+        #pragma omp critical
+        {
+            mtpsd = (double*) malloc(sizeof(double) * cFrmPt);
+            sgn = (fftw_complex*) fftw_malloc(
+                    sizeof(fftw_complex) * cFrmPt);
+            p = fftw_plan_dft_1d(cFrmPt, sgn, sgn,
+                    FFTW_FORWARD, FFTW_ESTIMATE);
         }
-        multitaper.estimate(sgn, mtpsd);
-        fftw_execute(p);
-        for (k = 0; k < bins; k++) {
-            tmp = (cFrmPt - bins/2 + k) % cFrmPt;
-            hfft->SetBinContent(k+1, j+1, SQ(sgn[tmp][0])+SQ(sgn[tmp][1]));
-            hmtpsd->SetBinContent(k+1, j+1, mtpsd[tmp]);
+
+        #pragma omp for private(j, k, tmp)
+        for (j = 0; j < blksz; j++) {
+            #pragma omp critical
+            for (k = 0; k < cFrmPt; k++) {
+                fread(&tmp, 4, 1, fp);
+                sgn[k][0] = pInfo->Scaling * tmp;
+                fread(&tmp, 4, 1, fp);
+                sgn[k][1] = pInfo->Scaling * tmp;
+                hmag->SetBinContent(j*cFrmPt + k + 1,
+                        sqrt(SQ(sgn[k][0]) + SQ(sgn[k][1])));
+                hphs->SetBinContent(j*cFrmPt + k + 1,
+                        atan2(sgn[k][1], sgn[k][0]));
+            }
+            multitaper.estimate(sgn, mtpsd);
+            fftw_execute(p);
+            #pragma omp critical
+            for (k = 0; k < bins; k++) {
+                tmp = (cFrmPt - bins/2 + k) % cFrmPt;
+                hfft->SetBinContent(k+1, j+1, SQ(sgn[tmp][0])+SQ(sgn[tmp][1]));
+                hmtpsd->SetBinContent(k+1, j+1, mtpsd[tmp]);
+            }
+            if (!(j % 10)) {
+                #pragma omp critical
+                {
+                    ctr += 10;
+                    cout << "processing... " << fixed << setw(5) << setprecision(2)
+                        << right << (double)ctr/blksz*100 << "%\r" << flush;
+                }
+            }
         }
-        if (!(j % 10))
-            cout << "processing... " << fixed << setw(5) << setprecision(2)
-               << right << (double)j/blksz*100 << "%\r" << flush;
+        fftw_destroy_plan(p);
+        fftw_free(sgn);
+        free(mtpsd);
     }
     cout << endl;
 
@@ -350,9 +373,6 @@ bool do_process_tiq(const char* outfile, FILE* fp, Info_t* pInfo, int ntap, bool
     delete hphs;
     delete hfft;
     delete hmtpsd;
-    fftw_destroy_plan(p);
-    fftw_free(sgn);
-    free(mtpsd);
     return true;
 }
 

@@ -43,8 +43,11 @@ class Multitaper {
         ~Multitaper() {
             for (int i = 0; i < n_taper; i++) delete[] taper[i];
             delete[] taper;
-            fftw_destroy_plan(plan);
-            fftw_free(seqcopy);
+            #pragma omp critical
+            {
+                fftw_destroy_plan(plan);
+                fftw_free(seqcopy);
+            }
         }
         void estimate(fftw_complex*, double*);
 

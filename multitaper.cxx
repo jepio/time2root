@@ -33,9 +33,12 @@
 void Multitaper::build() {
     taper = new double* [n_taper];
     for (int i = 0; i < n_taper; i++) taper[i] = new double [n_sample];
-    seqcopy = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * n_sample);
-    plan = fftw_plan_dft_1d(n_sample, seqcopy, seqcopy,
-            FFTW_FORWARD, FFTW_ESTIMATE);
+    #pragma omp critical
+    {
+        seqcopy = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * n_sample);
+        plan = fftw_plan_dft_1d(n_sample, seqcopy, seqcopy,
+                FFTW_FORWARD, FFTW_ESTIMATE);
+    }
 }
 
 void Multitaper::load() {
