@@ -308,7 +308,7 @@ bool do_process_tiq(const char* outfile, FILE* fp, Info_t* pInfo, int ntap, bool
     //h->GetYaxis()->SetTimeOffset(dt->Convert());
 
     int ctr = 0;
-    #pragma omp parallel shared(ctr)
+#pragma omp parallel shared(ctr)
     {
         int j, k, tmp;
         Multitaper multitaper(cFrmPt, ntap, ntap/2+1);
@@ -317,7 +317,7 @@ bool do_process_tiq(const char* outfile, FILE* fp, Info_t* pInfo, int ntap, bool
         fftw_complex *sgn;
         fftw_plan p;
 
-        #pragma omp critical
+#pragma omp critical
         {
             mtpsd = (double*) malloc(sizeof(double) * cFrmPt);
             sgn = (fftw_complex*) fftw_malloc(
@@ -326,9 +326,9 @@ bool do_process_tiq(const char* outfile, FILE* fp, Info_t* pInfo, int ntap, bool
                     FFTW_FORWARD, FFTW_ESTIMATE);
         }
 
-        #pragma omp for private(j, k, tmp)
+#pragma omp for private(j, k, tmp)
         for (j = 0; j < blksz; j++) {
-            #pragma omp critical
+#pragma omp critical
             for (k = 0; k < cFrmPt; k++) {
                 fread(&tmp, 4, 1, fp);
                 sgn[k][0] = pInfo->Scaling * tmp;
@@ -341,14 +341,14 @@ bool do_process_tiq(const char* outfile, FILE* fp, Info_t* pInfo, int ntap, bool
             }
             multitaper.estimate(sgn, mtpsd);
             fftw_execute(p);
-            #pragma omp critical
+#pragma omp critical
             for (k = 0; k < bins; k++) {
                 tmp = (cFrmPt - bins/2 + k) % cFrmPt;
                 hfft->SetBinContent(k+1, j+1, SQ(sgn[tmp][0])+SQ(sgn[tmp][1]));
                 hmtpsd->SetBinContent(k+1, j+1, mtpsd[tmp]);
             }
             if (!(j % 10)) {
-                #pragma omp critical
+#pragma omp critical
                 {
                     ctr += 10;
                     cout << "processing... " << fixed << setw(5) << setprecision(2)
@@ -356,9 +356,12 @@ bool do_process_tiq(const char* outfile, FILE* fp, Info_t* pInfo, int ntap, bool
                 }
             }
         }
-        fftw_destroy_plan(p);
-        fftw_free(sgn);
-        free(mtpsd);
+#pragma omp critical
+        {
+            fftw_destroy_plan(p);
+            fftw_free(sgn);
+            free(mtpsd);
+        }
     }
     cout << endl;
 
