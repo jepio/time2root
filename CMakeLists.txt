@@ -7,6 +7,15 @@ find_package(ROOT REQUIRED)
 # Add libraries to linker flags
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${ROOT_LIBRARIES} -lgsl -lgslcblas -lfftw3 -lm")
 
+option(ENABLE_OMP "Enable OpenMP support" OFF)
+if (ENABLE_OMP)
+    message(STATUS "Adding OpenMP")
+    find_package(OpenMP REQUIRED)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+else()
+    message(STATUS "Disabling OpenMP")
+endif()
+
 set(SOURCE
     FritzDPSS.cxx
     iqtdata.cxx
